@@ -1,0 +1,28 @@
+[package]
+name = "procgen-terrain"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# The `vulkano` crate is the main crate that you must use to use Vulkan.
+vulkano = "0.27.1"
+# Provides the `shader!` macro that is used to generate code for using shaders.
+vulkano-shaders = "0.27.1"
+# The Vulkan library doesn't provide any functionality to create and handle windows, as
+# this would be out of scope. In order to open a window, we are going to use the `winit` crate.
+winit = "0.25"
+# The `vulkano_win` crate is the link between `vulkano` and `winit`. Vulkano doesn't know about winit,
+# and winit doesn't know about vulkano, so import a crate that will provide a link between the two.
+vulkano-win = "0.27.1"
+
+cgmath = "0.18"
+png = "0.15.0"
+time = "0.1.38"
+serde = { version="1.0.114", features = ["derive"] }
+ron = "0.6.0"
+nalgebra = "*"
+nalgebra-glm = "*"
+noise = "0.7.0"
+tri-mesh = "0.5.0"
