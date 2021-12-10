@@ -61,8 +61,8 @@ fn main() {
     // The start of this example is exactly the same as `triangle`. You should read the
     // `triangle` example if you haven't done so yet.
 
-    let terrain = Terrain::new((1024, 1024), 42);
-    let terrain_model = terrain.as_model(1);
+    let terrain = Terrain::new((64, 64), 42);
+    let terrain_model = terrain.as_model((64.0, 64.0), 64);
 
     let required_extensions = vulkano_win::required_extensions();
     let instance = Instance::new(None, Version::V1_1, &required_extensions, None).unwrap();
@@ -289,8 +289,8 @@ fn main() {
                         0,
                         set.clone(),
                     )
-                    .bind_vertex_buffers(0, (vertex_buffer.clone(), terrain_buffer.clone()))
-                    .draw(vertex_buffer.len() as u32 + terrain_buffer.len() as u32, 2, 0, 0)
+                    .bind_vertex_buffers(0, terrain_buffer.clone())
+                    .draw(terrain_buffer.len() as u32, 2, 0, 0)
                     .unwrap()
                     .end_render_pass()
                     .unwrap();

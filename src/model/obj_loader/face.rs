@@ -4,6 +4,7 @@
 
 use std::fmt;
 
+#[derive(Default, Debug, Clone)]
 pub struct RawFace {
     pub verts: [usize; 3],
     pub norms: Option<[usize; 3]>,

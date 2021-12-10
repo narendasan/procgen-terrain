@@ -2,6 +2,7 @@
 // Licensed under the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>
 
+#[derive(Default, Debug, Clone)]
 pub struct RawVertex {
     pub vals: [f32; 3],
 }
@@ -28,14 +29,6 @@ impl RawVertex {
     pub fn from_tuple(pt: (f32, f32, f32)) -> RawVertex {
         RawVertex {
             vals: [pt.0, pt.1, pt.2]
-        }
-    }
-}
-
-impl Clone for RawVertex {
-     fn clone(&self) -> Self {
-        RawVertex {
-            vals: self.vals.clone()
         }
     }
 }
