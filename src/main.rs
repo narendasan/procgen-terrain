@@ -42,11 +42,8 @@ use winit::window::{Window, WindowBuilder};
 
 use cgmath::{Matrix3, Matrix4, Point3, Rad, Vector3};
 
-use std::iter;
 use std::sync::Arc;
 use std::time::Instant;
-use std::io::BufReader;
-use std::fs::File;
 
 
 // Register a data representation format so that vulkano can do the glue for you
@@ -61,8 +58,8 @@ fn main() {
     // The start of this example is exactly the same as `triangle`. You should read the
     // `triangle` example if you haven't done so yet.
 
-    let terrain = Terrain::new((64, 64), 42);
-    let terrain_model = terrain.as_model((64.0, 64.0), 64);
+    let terrain = Terrain::new((512, 512), 42);
+    let terrain_model = terrain.as_model((128.0, 128.0), 256);
 
     let required_extensions = vulkano_win::required_extensions();
     let instance = Instance::new(None, Version::V1_1, &required_extensions, None).unwrap();
@@ -279,7 +276,7 @@ fn main() {
                     .begin_render_pass(
                         framebuffers[image_num].clone(),
                         SubpassContents::Inline,
-                        vec![[0.0, 0.0, 0.0, 1.0].into(), 1f32.into()],
+                        vec![[0.57421875, 0.796875, 0.9140625, 1.0].into(), 1f32.into()],
                     )
                     .unwrap()
                     .bind_pipeline_graphics(pipeline.clone())
@@ -289,7 +286,7 @@ fn main() {
                         0,
                         set.clone(),
                     )
-                    .bind_vertex_buffers(0, terrain_buffer.clone())
+                    .bind_vertex_buffers(0, (terrain_buffer.clone(), vertex_buffer.clone()))
                     .draw(terrain_buffer.len() as u32, 2, 0, 0)
                     .unwrap()
                     .end_render_pass()
