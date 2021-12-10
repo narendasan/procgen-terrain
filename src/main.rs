@@ -286,8 +286,18 @@ fn main() {
                         0,
                         set.clone(),
                     )
-                    .bind_vertex_buffers(0, (terrain_buffer.clone(), vertex_buffer.clone()))
+                    .bind_vertex_buffers(0, terrain_buffer.clone())
                     .draw(terrain_buffer.len() as u32, 2, 0, 0)
+                    .unwrap()
+                    .bind_pipeline_graphics(pipeline.clone())
+                    .bind_descriptor_sets(
+                        PipelineBindPoint::Graphics,
+                        pipeline.layout().clone(),
+                        0,
+                        set.clone(),
+                    )
+                    .bind_vertex_buffers(0, vertex_buffer.clone())
+                    .draw(vertex_buffer.len() as u32, 2, 0, 0)
                     .unwrap()
                     .end_render_pass()
                     .unwrap();
