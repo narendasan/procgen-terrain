@@ -91,6 +91,8 @@ struct SceneGeometry {
     terrain_buffer: Arc<CpuAccessibleBuffer<[NormalVertex]>>,
     trees: Vec<Model>,
     tree_buffer: Arc<CpuAccessibleBuffer<[NormalVertex]>>,
+    houses: Vec<Model>,
+    house_buffer: Arc<CpuAccessibleBuffer<[NormalVertex]>>,
 }
 
 impl SceneGeometry {
@@ -100,14 +102,18 @@ impl SceneGeometry {
         subdivisions: usize,
         seed: u32,
         num_trees: u32,
+        num_houses: u32,
         tree_bounds: (i32, i32),
         device: Arc<Device>,
     ) -> Self {
         let mut terrain = Terrain::new(noise_shape, seed);
         let mut terrain_model = terrain.as_model(terrain_size, subdivisions);
-        let mut tree_model = Model::new("data/models/tree.obj").build();
-        tree_model.scale(vec3(0.1,0.1,0.1));
 
+        let mut tree_model = Model::new("data/models/tree.obj").build();
+        tree_model.scale(vec3(0.2,0.3,0.2));
+
+        let mut house_model = Model::new("data/models/house.obj").build();
+        house_model.scale(vec3(0.3,0.3,0.3));
 
         let tree_buffer = CpuAccessibleBuffer::from_iter(
             device.clone(),
@@ -123,9 +129,21 @@ impl SceneGeometry {
             terrain_model.data().iter().cloned()
         ).expect("Failed to create terrain buffer");
 
+        let house_buffer = CpuAccessibleBuffer::from_iter(
+            device.clone(),
+            BufferUsage::all(),
+            false,
+            house_model.data().iter().cloned()
+        ).expect("Failed to create house buffer");
+
         let mut trees: Vec<Model> = Vec::new();
         for i in 0..num_trees {
             trees.push(tree_model.clone());
+        }
+
+        let mut houses: Vec<Model> = Vec::new();
+        for i in 0..num_houses {
+            houses.push(house_model.clone());
         }
 
         let (cx, cz) = ((subdivisions / 2) as i32, (subdivisions / 2) as i32);
@@ -136,8 +154,6 @@ impl SceneGeometry {
             (cx + tree_bounds.1) as usize,
             (cz + tree_bounds.1) as usize,
         );
-
-
 
         let mut loc_choices: Vec<(usize, usize)> = Vec::new();
         for i in lbx..ubx {
@@ -154,13 +170,20 @@ impl SceneGeometry {
             model.translate(vec3(loc[0], loc[1], loc[2]));
         }
 
+        for (i, model) in houses.iter_mut().enumerate() {
+            let loc_idx = loc_choices[i + num_trees as usize];
+            let loc = terrain.map.slice(s![loc_idx.0, loc_idx.1, ..]);
+            model.translate(vec3(loc[0], loc[1], loc[2]));
+        }
 
         SceneGeometry {
             terrain,
             terrain_model,
             terrain_buffer,
             trees,
-            tree_buffer
+            tree_buffer,
+            houses,
+            house_buffer
         }
     }
 
@@ -187,6 +210,17 @@ impl SceneGeometry {
                 tree_model,
                 pipeline.clone(),
                 self.tree_buffer.clone(),
+                vp_set.clone(),
+                model_buffer,
+                draw_command
+            );
+        }
+
+        for house_model in &mut self.houses {
+            draw_command = draw_model(
+                house_model,
+                pipeline.clone(),
+                self.house_buffer.clone(),
                 vp_set.clone(),
                 model_buffer,
                 draw_command
@@ -280,6 +314,7 @@ fn main() {
         256,
         100,
         200,
+        10,
         (-30, 30),
         device.clone(),
     );
