@@ -151,7 +151,7 @@ impl SceneGeometry {
         for (i, model) in trees.iter_mut().enumerate() {
             let loc_idx = loc_choices[i];
             let loc = terrain.map.slice(s![loc_idx.0, loc_idx.1, ..]);
-            model.translate(vec3(loc[0], loc[1] + 0.10, loc[2]));
+            model.translate(vec3(loc[0], loc[1], loc[2]));
         }
 
 
