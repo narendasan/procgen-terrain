@@ -12,6 +12,7 @@ pub enum TerrainKind {
 	Grass,
 	Rock,
 	Snow,
+	GreyBody,
 }
 
 impl TerrainKind {
@@ -35,6 +36,7 @@ impl TerrainKind {
 			TerrainKind::Grass => hex_to_f32(0x112f04),
 			TerrainKind::Rock => hex_to_f32(0x5E2207),
 			TerrainKind::Snow => hex_to_f32(0xf7f8f6),
+			TerrainKind::GreyBody => hex_to_f32(0xF0F0F0),
 		}
 	}
 }
