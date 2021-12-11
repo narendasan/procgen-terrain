@@ -130,10 +130,10 @@ impl SceneGeometry {
         let terrain_model = terrain.as_model(terrain_size, subdivisions);
 
         let mut tree_model = Model::new("data/models/tree.obj").build();
-        tree_model.scale(vec3(0.2,0.3,0.2));
+        tree_model.scale(vec3(0.15,0.3,0.15));
 
         let mut house_model = Model::new("data/models/house.obj").build();
-        house_model.scale(vec3(0.3,0.3,0.3));
+        house_model.scale(vec3(0.2,0.2,0.2));
 
         let tree_buffer = CpuAccessibleBuffer::from_iter(
             device.clone(),
@@ -427,7 +427,7 @@ fn main() {
                         100.0,
                     );
                     let view = Matrix4::look_at_rh(
-                        Point3::new(0.3, 0.3, 1.0),
+                        Point3::new(2.5, 2.5, 1.0),
                         Point3::new(0.0, 0.0, 0.0),
                         Vector3::new(0.0, -1.0, 0.0),
                     );
