@@ -43,6 +43,7 @@ impl TerrainKind {
 pub struct Terrain {
 	noise_h: usize,
 	noise_w: usize,
+	#[allow(dead_code)]
 	seed: u32,
 	base_noise_map: NoiseMap,
 	pub map: Array::<f32,Ix3>,

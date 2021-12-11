@@ -1,12 +1,12 @@
 mod model;
 mod shaders;
 mod terrain;
-use crate::model::{Model, NormalVertex, DummyVertex};
+use crate::model::{Model, NormalVertex};
 use crate::shaders::{vs, fs};
 use crate::terrain::Terrain;
 
 use vulkano::buffer::cpu_pool::CpuBufferPool;
-use vulkano::buffer::{BufferAccess, BufferUsage, CpuAccessibleBuffer, TypedBufferAccess};
+use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer, TypedBufferAccess};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, SubpassContents};
 use vulkano::command_buffer::pool::standard::{
 	StandardCommandPoolAlloc, StandardCommandPoolBuilder,
@@ -107,7 +107,6 @@ fn draw_model(
 }
 
 struct SceneGeometry {
-    terrain: Terrain,
     terrain_model: Model,
     terrain_buffer: Arc<CpuAccessibleBuffer<[NormalVertex]>>,
     trees: Vec<Model>,
@@ -128,7 +127,7 @@ impl SceneGeometry {
         device: Arc<Device>,
     ) -> Self {
         let mut terrain = Terrain::new(noise_shape, seed);
-        let mut terrain_model = terrain.as_model(terrain_size, subdivisions);
+        let terrain_model = terrain.as_model(terrain_size, subdivisions);
 
         let mut tree_model = Model::new("data/models/tree.obj").build();
         tree_model.scale(vec3(0.2,0.3,0.2));
@@ -158,12 +157,12 @@ impl SceneGeometry {
         ).expect("Failed to create house buffer");
 
         let mut trees: Vec<Model> = Vec::new();
-        for i in 0..num_trees {
+        for _ in 0..num_trees {
             trees.push(tree_model.clone());
         }
 
         let mut houses: Vec<Model> = Vec::new();
-        for i in 0..num_houses {
+        for _ in 0..num_houses {
             houses.push(house_model.clone());
         }
 
@@ -198,7 +197,6 @@ impl SceneGeometry {
         }
 
         SceneGeometry {
-            terrain,
             terrain_model,
             terrain_buffer,
             trees,
@@ -255,7 +253,6 @@ impl SceneGeometry {
 
 // Register a data representation format so that vulkano can do the glue for you
 vulkano::impl_vertex!(NormalVertex, position, normal, color);
-vulkano::impl_vertex!(DummyVertex, position);
 
 // Significant device limitations NVIDIA/Intel for vulkan
 

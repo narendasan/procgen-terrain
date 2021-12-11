@@ -135,7 +135,6 @@ impl Model {
                 color: TerrainKind::from_elevation(pos.y).color()
             }
         };
-        let vert_order: Vec<FaceID> = mesh.face_iter().collect();
         let mut verts: Vec<NormalVertex> = Vec::new();
         for f_id in mesh.face_iter() {
             let (a, b, c) = mesh.ordered_face_vertices(f_id);
