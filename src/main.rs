@@ -42,6 +42,27 @@ use rand::prelude::*;
 use std::sync::Arc;
 use std::time::Instant;
 
+use structopt::StructOpt;
+
+#[derive(StructOpt, Debug)]
+#[structopt(name="procgen-terrain")]
+struct Args {
+    #[structopt(short, long, default_value = "512")]
+    noise: usize,
+    #[structopt(short, long, default_value = "128.0")]
+    map: f32,
+    #[structopt(short, long, default_value = "256")]
+    gridsize: usize,
+    #[structopt(short, long, default_value = "100")]
+    seed: u32,
+    #[structopt(short, long, default_value = "200")]
+    trees: u32,
+    #[structopt(short, long, default_value = "10")]
+    houses: u32,
+    #[structopt(short, long, default_value = "30")]
+    bounds: i32,
+}
+
 type VulkanCommandBufferBuilder = AutoCommandBufferBuilder<PrimaryAutoCommandBuffer<StandardCommandPoolAlloc>, StandardCommandPoolBuilder>;
 
 fn draw_model(
@@ -241,6 +262,7 @@ vulkano::impl_vertex!(DummyVertex, position);
 // Lots more support for checking if pipeline components are compatible with each other
 
 fn main() {
+    let args = Args::from_args();
     // The start of this example is exactly the same as `triangle`. You should read the
     // `triangle` example if you haven't done so yet.
 
@@ -309,13 +331,13 @@ fn main() {
     };
 
     let mut scene = SceneGeometry::new(
-        (512, 512),
-        (128.0, 128.0),
-        256,
-        100,
-        200,
-        10,
-        (-30, 30),
+        (args.noise, args.noise),
+        (args.map, args.map),
+        args.gridsize,
+        args.seed,
+        args.trees,
+        args.houses,
+        (-1 * args.bounds, args.bounds),
         device.clone(),
     );
 
