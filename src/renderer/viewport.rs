@@ -1,12 +1,18 @@
+use nalgebra_glm::{look_at, identity, TMat4};
+
 #[derive(Debug, Clone)]
-struct VP  {
-	view: TMat4<f32>,
-	projection: TMat4<f32>
+pub struct VP  {
+	pub view: TMat4<f32>,
+	pub projection: TMat4<f32>,
+	pub world: TMat4<f32>,
 }
 
 impl VP {
-	fn new() -> {
-		view: identity(),
-		projection: identity(),
+	pub fn new() -> VP {
+		VP {
+			view: identity(),
+			projection: identity(),
+			world: identity(),
+		}
 	}
 }

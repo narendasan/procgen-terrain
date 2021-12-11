@@ -7,7 +7,7 @@
 use crate::model::obj_loader::{Loader, NormalVertex};
 
 use tri_mesh::prelude::*;
-use nalgebra_glm::{identity, rotate_normalized_axis, translate, TMat4, TVec3};
+use nalgebra_glm::{identity, inverse_transpose, rotate_normalized_axis, translate, scale, TMat4, TVec3};
 
 use crate::terrain::TerrainKind;
 
@@ -17,11 +17,14 @@ use crate::terrain::TerrainKind;
 /// the input obj file is in clockwise winding order. If it is already in
 /// counter-clockwise winding order, call `.invert_winding_order(false)`
 /// when building the `Model`.
+#[derive(Default, Debug, Clone)]
 pub struct Model {
     data: Vec<NormalVertex>,
     translation: TMat4<f32>,
     rotation: TMat4<f32>,
+    scale: TMat4<f32>,
     model: TMat4<f32>,
+    normals: TMat4<f32>,
     // we might call multiple translation/rotation calls
     // in between asking for the model matrix. This lets
     // only recreate the model matrix when needed.
@@ -38,7 +41,7 @@ impl ModelBuilder {
     fn new(file: String) -> ModelBuilder {
         ModelBuilder {
             file_name: file,
-            custom_color: [1.0, 0.35, 0.137],
+            custom_color: [0.0, 0.284, 0.017],
             invert: true,
         }
     }
@@ -49,7 +52,9 @@ impl ModelBuilder {
             data: loader.as_normal_vertices(),
             translation: identity(),
             rotation: identity(),
+            scale: identity(),
             model: identity(),
+            normals: identity(),
             requires_update: false,
         }
     }
@@ -98,7 +103,9 @@ impl Model {
 			data: verts,
 			translation: identity(),
 			rotation: identity(),
+            scale: identity(),
 			model: identity(),
+            normals: identity(),
 			requires_update: false,
 		}
     }
@@ -107,12 +114,13 @@ impl Model {
         self.data.clone()
     }
 
-    pub fn model_matrix(&mut self) -> TMat4<f32> {
+    pub fn model_matrices(&mut self) -> (TMat4<f32>, TMat4<f32>) {
         if self.requires_update {
-            self.model = self.translation * self.rotation;
+            self.model = self.translation * self.scale * self.rotation;
+            self.normals = inverse_transpose(self.model);
             self.requires_update = false;
         }
-        self.model
+        return (self.model, self.normals);
     }
 
     pub fn rotate(&mut self, radians: f32, v: TVec3<f32>) {
@@ -122,6 +130,11 @@ impl Model {
 
     pub fn translate(&mut self, v: TVec3<f32>) {
         self.translation = translate(&self.translation, &v);
+        self.requires_update = true;
+    }
+
+    pub fn scale(&mut self, v: TVec3<f32>) {
+        self.scale = scale(&self.scale, &v);
         self.requires_update = true;
     }
 

@@ -1,5 +1,7 @@
 use noise::{utils::*, *};
 use tri_mesh::prelude::*;
+use ndarray::prelude::*;
+use ndarray::{Array, Ix3};
 
 use crate::model::{Model, RawVertex, RawFace};
 
@@ -42,7 +44,8 @@ pub struct Terrain {
 	noise_h: usize,
 	noise_w: usize,
 	seed: u32,
-	base_noise_map: NoiseMap
+	base_noise_map: NoiseMap,
+	pub map: Array::<f32,Ix3>,
 }
 
 impl Terrain {
@@ -64,11 +67,12 @@ impl Terrain {
 			noise_h: noise_shape.0,
 			noise_w: noise_shape.1,
 			seed: seed,
-			base_noise_map: base_noise_map
+			base_noise_map: base_noise_map,
+			map: Array::zeros((noise_shape.0, noise_shape.1, 3)),
 		}
 	}
 
-	pub fn as_model(&self, dims: (f32, f32), subdivisions: usize) -> Model {
+	pub fn as_model(&mut self, dims: (f32, f32), subdivisions: usize) -> Model {
 		let (len_x, len_z) = dims;
 		let num_verts = (subdivisions + 1) * (subdivisions + 1);
 		let mut verts: Vec<RawVertex> = vec![RawVertex{vals:[0.,0.,0.]}; num_verts];
@@ -78,6 +82,8 @@ impl Terrain {
 		let to_1d = |y: usize, x: usize| (y * (subdivisions + 1)) + x;
 		let to_noise_coors = |y: usize, x: usize| (((y as f32 * inv_subdivision) * self.noise_h as f32) as usize, ((x as f32 * inv_subdivision) * self.noise_w as f32) as usize);
 
+		self.map = Array::zeros((subdivisions + 1, subdivisions + 1, 3));
+
 		for j in 0..(subdivisions + 1) {
 			for i in 0..(subdivisions + 1) {
 				let (noise_idx_y, noise_idx_x) = to_noise_coors(j,i);
@@ -85,6 +91,11 @@ impl Terrain {
 						(len_x * (i as f32 * inv_subdivision - 0.5),
 							10.0 as f32 * self.base_noise_map.get_value(noise_idx_x, noise_idx_y) as f32,
 							len_z * (j as f32 * inv_subdivision - 0.5)));
+				self.map.slice_mut(s![j,i,..]).assign(&array![
+					len_x * (i as f32 * inv_subdivision - 0.5),
+					10.0 as f32 * self.base_noise_map.get_value(noise_idx_x, noise_idx_y) as f32,
+					len_z * (j as f32 * inv_subdivision - 0.5)
+				]);
 			}
 		}
 

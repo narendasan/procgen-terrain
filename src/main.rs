@@ -1,22 +1,16 @@
-// Copyright (c) 2016 The vulkano developers
-// Licensed under the Apache License, Version 2.0
-// <LICENSE-APACHE or
-// https://www.apache.org/licenses/LICENSE-2.0> or the MIT
-// license <LICENSE-MIT or https://opensource.org/licenses/MIT>,
-// at your option. All files in the project carrying such
-// notice may not be copied, modified, or distributed except
-// according to those terms.
-
-mod shaders;
-use crate::shaders::{vs, fs};
 mod model;
-use crate::model::{Model, NormalVertex, DummyVertex};
+mod shaders;
 mod terrain;
+use crate::model::{Model, NormalVertex, DummyVertex};
+use crate::shaders::{vs, fs};
 use crate::terrain::Terrain;
 
 use vulkano::buffer::cpu_pool::CpuBufferPool;
-use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer, TypedBufferAccess};
-use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, SubpassContents};
+use vulkano::buffer::{BufferAccess, BufferUsage, CpuAccessibleBuffer, TypedBufferAccess};
+use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, SubpassContents};
+use vulkano::command_buffer::pool::standard::{
+	StandardCommandPoolAlloc, StandardCommandPoolBuilder,
+};
 use vulkano::descriptor_set::PersistentDescriptorSet;
 use vulkano::device::physical::{PhysicalDevice, PhysicalDeviceType};
 use vulkano::device::{Device, DeviceExtensions, Features};
@@ -41,9 +35,167 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
 use cgmath::{Matrix3, Matrix4, Point3, Rad, Vector3};
+use nalgebra_glm::{vec3};
+use ndarray::prelude::*;
+use rand::prelude::*;
 
 use std::sync::Arc;
 use std::time::Instant;
+
+type VulkanCommandBufferBuilder = AutoCommandBufferBuilder<PrimaryAutoCommandBuffer<StandardCommandPoolAlloc>, StandardCommandPoolBuilder>;
+
+fn draw_model(
+    model: &mut Model,
+    pipeline: Arc<GraphicsPipeline>,
+    vertex_buffer: Arc<CpuAccessibleBuffer<[NormalVertex]>>,
+    vp_set: Arc<PersistentDescriptorSet>,
+    model_buffer: &CpuBufferPool<vs::ty::Model_Data>,
+    mut command: Option<VulkanCommandBufferBuilder>
+) -> Option<VulkanCommandBufferBuilder> {
+
+    let model_set = {
+        let (model_mat, norm_mat) = model.model_matrices();
+        let model_buffer_subbuffer = {
+            let model_data = vs::ty::Model_Data {
+                model: model_mat.into(),
+                normals: norm_mat.into()
+            };
+
+            model_buffer.next(model_data).unwrap()
+        };
+        let model_layout = pipeline.layout().descriptor_set_layouts().get(1).unwrap();
+        let mut model_set_builder = PersistentDescriptorSet::start(model_layout.clone());
+
+        model_set_builder.add_buffer(model_buffer_subbuffer).unwrap();
+        model_set_builder.build().unwrap()
+    };
+
+    let mut draw_command = command.take().unwrap();
+    draw_command.bind_pipeline_graphics(pipeline.clone())
+        .bind_descriptor_sets(
+            PipelineBindPoint::Graphics,
+            pipeline.layout().clone(),
+            0,
+            (vp_set.clone(), model_set.clone()),
+        )
+        .bind_vertex_buffers(0, vertex_buffer.clone())
+        .draw(vertex_buffer.len() as u32, 2, 0, 0)
+        .unwrap();
+
+    Some(draw_command)
+}
+
+struct SceneGeometry {
+    terrain: Terrain,
+    terrain_model: Model,
+    terrain_buffer: Arc<CpuAccessibleBuffer<[NormalVertex]>>,
+    trees: Vec<Model>,
+    tree_buffer: Arc<CpuAccessibleBuffer<[NormalVertex]>>,
+}
+
+impl SceneGeometry {
+    fn new(
+        noise_shape: (usize,usize),
+        terrain_size: (f32, f32),
+        subdivisions: usize,
+        seed: u32,
+        num_trees: u32,
+        tree_bounds: (i32, i32),
+        device: Arc<Device>,
+    ) -> Self {
+        let mut terrain = Terrain::new(noise_shape, seed);
+        let mut terrain_model = terrain.as_model(terrain_size, subdivisions);
+        let mut tree_model = Model::new("data/models/tree.obj").build();
+        tree_model.scale(vec3(0.1,0.1,0.1));
+
+
+        let tree_buffer = CpuAccessibleBuffer::from_iter(
+            device.clone(),
+            BufferUsage::all(),
+            false,
+            tree_model.data().iter().cloned()
+        ).expect("Failed to create tree buffer");
+
+        let terrain_buffer = CpuAccessibleBuffer::from_iter(
+            device.clone(),
+            BufferUsage::all(),
+            false,
+            terrain_model.data().iter().cloned()
+        ).expect("Failed to create terrain buffer");
+
+        let mut trees: Vec<Model> = Vec::new();
+        for i in 0..num_trees {
+            trees.push(tree_model.clone());
+        }
+
+        let (cx, cz) = ((subdivisions / 2) as i32, (subdivisions / 2) as i32);
+
+        let (lbx, lbz, ubx, ubz): (usize, usize, usize, usize) = (
+            (cx + tree_bounds.0) as usize,
+            (cz + tree_bounds.0) as usize,
+            (cx + tree_bounds.1) as usize,
+            (cz + tree_bounds.1) as usize,
+        );
+
+
+
+        let mut loc_choices: Vec<(usize, usize)> = Vec::new();
+        for i in lbx..ubx {
+            for j in lbz..ubz {
+                loc_choices.push((i,j));
+            }
+        }
+
+        loc_choices.shuffle(&mut thread_rng());
+
+        for (i, model) in trees.iter_mut().enumerate() {
+            let loc_idx = loc_choices[i];
+            let loc = terrain.map.slice(s![loc_idx.0, loc_idx.1, ..]);
+            model.translate(vec3(loc[0], loc[1] + 0.10, loc[2]));
+        }
+
+
+        SceneGeometry {
+            terrain,
+            terrain_model,
+            terrain_buffer,
+            trees,
+            tree_buffer
+        }
+    }
+
+    fn draw(
+        &mut self,
+        pipeline: Arc<GraphicsPipeline>,
+        vp_set: Arc<PersistentDescriptorSet>,
+        model_buffer: &CpuBufferPool<vs::ty::Model_Data>,
+        mut command: Option<VulkanCommandBufferBuilder>
+    ) -> Option<VulkanCommandBufferBuilder> {
+
+        let mut draw_command = Some(command.take().unwrap());
+        draw_command = draw_model(
+            &mut self.terrain_model,
+            pipeline.clone(),
+            self.terrain_buffer.clone(),
+            vp_set.clone(),
+            model_buffer,
+            draw_command
+        );
+
+        for tree_model in &mut self.trees {
+            draw_command = draw_model(
+                tree_model,
+                pipeline.clone(),
+                self.tree_buffer.clone(),
+                vp_set.clone(),
+                model_buffer,
+                draw_command
+            );
+        }
+
+        return draw_command;
+    }
+}
 
 
 // Register a data representation format so that vulkano can do the glue for you
@@ -57,9 +209,6 @@ vulkano::impl_vertex!(DummyVertex, position);
 fn main() {
     // The start of this example is exactly the same as `triangle`. You should read the
     // `triangle` example if you haven't done so yet.
-
-    let terrain = Terrain::new((512, 512), 42);
-    let terrain_model = terrain.as_model((128.0, 128.0), 256);
 
     let required_extensions = vulkano_win::required_extensions();
     let instance = Instance::new(None, Version::V1_1, &required_extensions, None).unwrap();
@@ -125,23 +274,18 @@ fn main() {
             .unwrap()
     };
 
-    let mut model = Model::new("data/models/normal-cone.obj").build();
-
-    let vertex_buffer = CpuAccessibleBuffer::from_iter(
+    let mut scene = SceneGeometry::new(
+        (512, 512),
+        (128.0, 128.0),
+        256,
+        100,
+        200,
+        (-30, 30),
         device.clone(),
-        BufferUsage::all(),
-        false,
-        model.data().iter().cloned()
-    ).unwrap();
+    );
 
-    let terrain_buffer = CpuAccessibleBuffer::from_iter(
-        device.clone(),
-        BufferUsage::all(),
-        false,
-        terrain_model.data().iter().cloned()
-    ).expect("Failed to create terrain VBO");
-
-    let uniform_buffer = CpuBufferPool::<vs::ty::Data>::new(device.clone(), BufferUsage::all());
+    let uniform_buffer = CpuBufferPool::<vs::ty::VP_Data>::new(device.clone(), BufferUsage::all());
+    let model_buffer = CpuBufferPool::<vs::ty::Model_Data>::new(device.clone(), BufferUsage::all());
 
     let vs = vs::load(device.clone()).unwrap();
     let fs = fs::load(device.clone()).unwrap();
@@ -165,8 +309,7 @@ fn main() {
             color: [color],
             depth_stencil: {depth}
         }
-    )
-    .unwrap();
+    ).unwrap();
 
     let (mut pipeline, mut framebuffers) =
         window_size_dependent_setup(device.clone(), &vs, &fs, &images, render_pass.clone());
@@ -236,10 +379,10 @@ fn main() {
                     );
                     let scale = Matrix4::from_scale(0.5);
 
-                    let uniform_data = vs::ty::Data {
+                    let uniform_data = vs::ty::VP_Data {
                         world: Matrix4::from(rotation).into(),
                         view: (view * scale).into(),
-                        proj: proj.into(),
+                        projection: proj.into(),
                     };
 
                     uniform_buffer.next(uniform_data).unwrap()
@@ -266,42 +409,30 @@ fn main() {
                     recreate_swapchain = true;
                 }
 
-                let mut builder = AutoCommandBufferBuilder::primary(
+                let mut command_builder = AutoCommandBufferBuilder::primary(
                     device.clone(),
                     queue.family(),
                     CommandBufferUsage::OneTimeSubmit,
-                )
-                .unwrap();
-                builder
+                ).expect("Unable to create command buffer builder");
+
+                command_builder
                     .begin_render_pass(
                         framebuffers[image_num].clone(),
                         SubpassContents::Inline,
                         vec![[0.57421875, 0.796875, 0.9140625, 1.0].into(), 1f32.into()],
                     )
-                    .unwrap()
-                    .bind_pipeline_graphics(pipeline.clone())
-                    .bind_descriptor_sets(
-                        PipelineBindPoint::Graphics,
-                        pipeline.layout().clone(),
-                        0,
-                        set.clone(),
-                    )
-                    .bind_vertex_buffers(0, terrain_buffer.clone())
-                    .draw(terrain_buffer.len() as u32, 2, 0, 0)
-                    .unwrap()
-                    .bind_pipeline_graphics(pipeline.clone())
-                    .bind_descriptor_sets(
-                        PipelineBindPoint::Graphics,
-                        pipeline.layout().clone(),
-                        0,
-                        set.clone(),
-                    )
-                    .bind_vertex_buffers(0, vertex_buffer.clone())
-                    .draw(vertex_buffer.len() as u32, 2, 0, 0)
-                    .unwrap()
-                    .end_render_pass()
                     .unwrap();
-                let command_buffer = builder.build().unwrap();
+
+                command_builder = scene.draw(
+                    pipeline.clone(),
+                    set.clone(),
+                    &model_buffer,
+                    Some(command_builder)
+                ).expect("Failed to draw scene");
+
+                command_builder.end_render_pass().unwrap();
+
+                let command_buffer = command_builder.build().unwrap();
 
                 let future = previous_frame_end
                     .take()
